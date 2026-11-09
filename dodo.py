@@ -61,16 +61,17 @@ environ["PYDEVD_DISABLE_FILE_VALIDATION"] = "1"
 
 # fmt: off
 ## Helper functions for automatic execution of Jupyter notebooks
+## (paths are quoted so that a checkout under a folder with spaces works)
 def jupyter_execute_notebook(notebook_path):
-    return f"jupyter nbconvert --execute --to notebook --ClearMetadataPreprocessor.enabled=True --inplace {notebook_path}"
+    return f'jupyter nbconvert --execute --to notebook --ClearMetadataPreprocessor.enabled=True --inplace "{notebook_path}"'
 def jupyter_to_html(notebook_path, output_dir=OUTPUT_DIR):
-    return f"jupyter nbconvert --to html --output-dir={output_dir} {notebook_path}"
+    return f'jupyter nbconvert --to html --output-dir="{output_dir}" "{notebook_path}"'
 def jupyter_to_md(notebook_path, output_dir=OUTPUT_DIR):
     """Requires jupytext"""
-    return f"jupytext --to markdown --output-dir={output_dir} {notebook_path}"
+    return f'jupytext --to markdown --output-dir="{output_dir}" "{notebook_path}"'
 def jupyter_clear_output(notebook_path):
     """Clear the output of a notebook"""
-    return f"jupyter nbconvert --ClearOutputPreprocessor.enabled=True --ClearMetadataPreprocessor.enabled=True --inplace {notebook_path}"
+    return f'jupyter nbconvert --ClearOutputPreprocessor.enabled=True --ClearMetadataPreprocessor.enabled=True --inplace "{notebook_path}"'
 # fmt: on
 
 
@@ -80,9 +81,9 @@ def mv(from_path, to_path):
     to_path = Path(to_path)
     to_path.mkdir(parents=True, exist_ok=True)
     if OS_TYPE == "nix":
-        command = f"mv {from_path} {to_path}"
+        command = f'mv "{from_path}" "{to_path}"'
     else:
-        command = f"move {from_path} {to_path}"
+        command = f'move "{from_path}" "{to_path}"'
     return command
 
 
@@ -210,28 +211,27 @@ def task_latest():
     page's timestamp. The backfill is the default `doit`, over the window in
     the settings. Not in the default task list.
     """
-    ## TODO: Complete this task definition. The actions run, in order, the
-    ## settings script, the two pulls (`src/pull_es_options.py --latest`, the
-    ## most recent session only, and `src/pull_fred.py`), `src/monitor.py`,
-    ## and `src/build_page.py`, which rebuilds the monitor's page from the
-    ## history. The file dependencies are those four modules,
-    ## `src/monitor_chart.py` (the page's chart), and the engine modules in
-    ## `ENGINE`. It has no targets: it appends to the history CSV in
-    ## `_output/` and rewrites the page, which `compute_history` and
-    ## `monitor_page` also write, and doit does not let two tasks claim one
-    ## file. One more key makes
-    ## this task different from every other one in this file: the daily
-    ## update has to run every time it is invoked. See
-    ## https://pydoit.org/tasks.html#uptodate and `test_task_latest` in
-    ## `src/test_dodo.py`.
+    # No targets: the history CSV and the page are also written by
+    # `compute_history` and `monitor_page`, and doit does not let two tasks
+    # claim one file.
     return {
         "actions": [
-            # TODO: YOUR CODE HERE
+            "python ./src/settings.py",
+            "python ./src/pull_es_options.py --latest",
+            "python ./src/pull_fred.py",
+            "python ./src/monitor.py",
+            "python ./src/build_page.py",
         ],
         "file_dep": [
-            # TODO: YOUR CODE HERE
+            "./src/pull_es_options.py",
+            "./src/pull_fred.py",
+            "./src/monitor.py",
+            "./src/build_page.py",
+            "./src/monitor_chart.py",
+            *ENGINE,
         ],
-        # TODO: YOUR CODE HERE
+        # Never up to date: a daily update's job is to check again.
+        "uptodate": [False],
         "verbosity": 2,
     }
 
@@ -421,7 +421,7 @@ def task_run_notebooks():
             "name": notebook,
             "actions": [
                 """python -c "import sys; from datetime import datetime; print(f'Start """ + notebook + """: {datetime.now()}', file=sys.stderr)" """,
-                f"jupytext --to notebook --output {notebook_path} {pyfile_path}",
+                f'jupytext --to notebook --output "{notebook_path}" "{pyfile_path}"',
                 jupyter_execute_notebook(notebook_path),
                 jupyter_to_html(notebook_path),
                 mv(notebook_path, OUTPUT_DIR),
